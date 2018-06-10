@@ -4389,4 +4389,13 @@ Wire Wire Line
 Wire Wire Line
 	16000 2200 16000 2150
 Connection ~ 16000 2150
+NoConn ~ 9100 8100
+NoConn ~ 9100 8000
+NoConn ~ 9100 7900
+NoConn ~ 9100 7700
+NoConn ~ 9100 7600
+NoConn ~ 11300 7100
+NoConn ~ 11300 7200
+NoConn ~ 11300 7300
+NoConn ~ 11300 7400
 $EndSCHEMATC
