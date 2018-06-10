@@ -1774,13 +1774,9 @@ SCK
 Text Label 11500 5900 0    60   ~ 0
 CS
 Text Label 11500 5600 0    60   ~ 0
-START
+ADC_START
 Text Label 11500 5700 0    60   ~ 0
-DRDY
-Text Label 15850 6800 0    60   ~ 0
-START
-Text Label 15850 6900 0    60   ~ 0
-DRDY
+ADC_DRDY
 Text Label 15350 6050 0    60   ~ 0
 CS
 Text Label 15350 5950 0    60   ~ 0
@@ -1790,13 +1786,9 @@ MOSI
 Text Label 15350 5750 0    60   ~ 0
 MISO
 Text Label 11500 4900 0    60   ~ 0
-RESET
+ADC_RESET
 Text Label 11500 5000 0    60   ~ 0
-PWDN
-Text Label 15850 6600 0    60   ~ 0
-RESET
-Text Label 15850 6700 0    60   ~ 0
-PWDN
+ADC_PWDN
 $Comp
 L +3.3V #PWR91
 U 1 1 5B14E21D
@@ -3176,8 +3168,6 @@ Connection ~ 8200 7700
 Wire Wire Line
 	11400 8100 11300 8100
 Wire Wire Line
-	11400 5400 11400 8200
-Wire Wire Line
 	8750 7400 9100 7400
 Wire Wire Line
 	8200 7300 9100 7300
@@ -3657,22 +3647,6 @@ Connection ~ 5250 9500
 Wire Wire Line
 	11400 5400 11300 5400
 Connection ~ 11400 8100
-Wire Wire Line
-	11900 5600 11300 5600
-Wire Wire Line
-	11900 5700 11300 5700
-Wire Wire Line
-	11900 5900 11300 5900
-Wire Wire Line
-	11900 6000 11300 6000
-Wire Wire Line
-	11900 6100 11300 6100
-Wire Wire Line
-	11900 6200 11300 6200
-Wire Wire Line
-	11900 5000 11300 5000
-Wire Wire Line
-	11900 4900 11300 4900
 Wire Wire Line
 	11300 5200 11400 5200
 Wire Wire Line
@@ -4398,4 +4372,30 @@ NoConn ~ 11300 7100
 NoConn ~ 11300 7200
 NoConn ~ 11300 7300
 NoConn ~ 11300 7400
+Text Label 15700 6850 0    60   ~ 0
+ADC_RESET
+Text Label 15700 7050 0    60   ~ 0
+ADC_PWDN
+Text Label 15650 7200 0    60   ~ 0
+ADC_START
+Text Label 15700 7350 0    60   ~ 0
+ADC_DRDY
+Wire Wire Line
+	12000 4900 11300 4900
+Wire Wire Line
+	12000 5000 11300 5000
+Wire Wire Line
+	11400 5400 11400 8200
+Wire Wire Line
+	12000 5600 11300 5600
+Wire Wire Line
+	12000 5700 11300 5700
+Wire Wire Line
+	12000 5900 11300 5900
+Wire Wire Line
+	12000 6000 11300 6000
+Wire Wire Line
+	12000 6100 11300 6100
+Wire Wire Line
+	12000 6200 11300 6200
 $EndSCHEMATC
