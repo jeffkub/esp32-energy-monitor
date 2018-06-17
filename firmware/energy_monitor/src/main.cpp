@@ -7,21 +7,30 @@
 #include <driver/gpio.h>
 #include <soc/io_mux_reg.h>
 
+#include "platform.h"
 #include "ads131.h"
 
-#define LED1_PIN GPIO_NUM_18
-#define LED2_PIN GPIO_NUM_19
-#define LED3_PIN GPIO_NUM_21
+static void platformInit(void);
+static void blinkTask(void *arg);
 
-ADS131 adc();
+ADS131 adc(CS_PIN);
 
-void blink_task(void *arg)
+static void platformInit(void)
 {
-    printf("Program start\n");
-
+    /* LED GPIO configuration */
     gpio_pad_select_gpio(LED1_PIN);
-    gpio_set_direction(LED1_PIN, GPIO_MODE_OUTPUT);
+    gpio_pad_select_gpio(LED2_PIN);
+    gpio_pad_select_gpio(LED3_PIN);
 
+    gpio_set_direction(LED1_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_direction(LED2_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_direction(LED3_PIN, GPIO_MODE_OUTPUT);
+
+    return;
+}
+
+static void blinkTask(void *arg)
+{
     while(1)
     {
         gpio_set_level(LED1_PIN, 1);
@@ -36,7 +45,11 @@ void blink_task(void *arg)
 
 extern "C" void app_main()
 {
-    xTaskCreate(&blink_task, "blink_task", configMINIMAL_STACK_SIZE, NULL, 5, NULL);
+    printf("Program start\n");
+
+    platformInit();
+
+    xTaskCreate(&blinkTask, "blinkTask", configMINIMAL_STACK_SIZE, NULL, 5, NULL);
 
     return;
 }
