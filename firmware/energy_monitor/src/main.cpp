@@ -13,7 +13,7 @@
 static void platformInit(void);
 static void blinkTask(void *arg);
 
-ADS131 adc(CS_PIN);
+ADS131 adc(SPI_HOST, CS_PIN);
 
 static void platformInit(void)
 {
