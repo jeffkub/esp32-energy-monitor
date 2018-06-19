@@ -28,6 +28,10 @@ static int platformInit(void)
     gpio_set_direction(LED3_PIN, GPIO_MODE_OUTPUT);
 
     /* SPI bus configuration */
+    gpio_pad_select_gpio(CS_PIN);
+    gpio_set_direction(CS_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(CS_PIN, 1);
+
     const spi_bus_config_t spi_bus_config =
     {
         .mosi_io_num = MOSI_PIN,
