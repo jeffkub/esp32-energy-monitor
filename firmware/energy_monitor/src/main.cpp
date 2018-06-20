@@ -14,24 +14,43 @@
 static int platformInit(void);
 static void blinkTask(void *arg);
 
-ADS131 adc(HSPI_HOST, CS_PIN);
+ADS131 adc(HSPI_HOST, CS_PIN, ADC_DRDY_PIN);
 
 static int platformInit(void)
 {
-    /* LED GPIO configuration */
+    /* GPIO configuration */
     gpio_pad_select_gpio(LED1_PIN);
-    gpio_pad_select_gpio(LED2_PIN);
-    gpio_pad_select_gpio(LED3_PIN);
-
     gpio_set_direction(LED1_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_direction(LED2_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_direction(LED3_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(LED1_PIN, 0);
 
-    /* SPI bus configuration */
+    gpio_pad_select_gpio(LED2_PIN);
+    gpio_set_direction(LED2_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(LED2_PIN, 0);
+
+    gpio_pad_select_gpio(LED3_PIN);
+    gpio_set_direction(LED3_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(LED3_PIN, 0);
+
     gpio_pad_select_gpio(CS_PIN);
     gpio_set_direction(CS_PIN, GPIO_MODE_OUTPUT);
     gpio_set_level(CS_PIN, 1);
 
+    gpio_pad_select_gpio(ADC_RESET_PIN);
+    gpio_set_direction(ADC_RESET_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(ADC_RESET_PIN, 1);
+
+    gpio_pad_select_gpio(ADC_PWDN_PIN);
+    gpio_set_direction(ADC_PWDN_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(ADC_PWDN_PIN, 1);
+
+    gpio_pad_select_gpio(ADC_START_PIN);
+    gpio_set_direction(ADC_START_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(ADC_START_PIN, 0);
+
+    gpio_pad_select_gpio(ADC_DRDY_PIN);
+    gpio_set_direction(ADC_DRDY_PIN, GPIO_MODE_INPUT);
+
+    /* SPI configuration */
     const spi_bus_config_t spi_bus_config =
     {
         .mosi_io_num = MOSI_PIN,
@@ -47,6 +66,7 @@ static int platformInit(void)
         return -1;
     }
 
+    /* Driver initialization */
     if(adc.init())
     {
         return -1;
