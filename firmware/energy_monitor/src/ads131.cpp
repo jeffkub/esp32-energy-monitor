@@ -19,6 +19,15 @@
 
 #define REG_ID          0x00
 
+void IRAM_ATTR ADS131::drdy_irq_handler(void* arg)
+{
+    ADS131* inst = (ADS131*)arg;
+
+    xSemaphoreGiveFromISR(inst->drdy_sem, NULL);
+
+    return;
+}
+
 ADS131::ADS131(spi_host_device_t spi, gpio_num_t cs, gpio_num_t drdy) :
     spi_dev(spi),
     cs_pin(cs),
@@ -30,24 +39,34 @@ ADS131::ADS131(spi_host_device_t spi, gpio_num_t cs, gpio_num_t drdy) :
         /* ERROR */
     }
 
+    drdy_sem = xSemaphoreCreateBinary();
+    if(drdy_sem == NULL)
+    {
+        /* ERROR */
+    }
+
     return;
 }
 
 ADS131::~ADS131()
 {
     vSemaphoreDelete(mutex);
+    vSemaphoreDelete(drdy_sem);
 
     return;
 }
 
-int ADS131::init(void)
+void ADS131::init(void)
 {
     uint8_t id_reg;
 
     if(xSemaphoreTake(mutex, portMAX_DELAY) == pdFALSE)
     {
-        return -1;
+
     }
+
+    ESP_ERROR_CHECK(gpio_set_intr_type(drdy_pin, GPIO_INTR_NEGEDGE));
+    ESP_ERROR_CHECK(gpio_isr_handler_add(drdy_pin, drdy_irq_handler, this));
 
     spi_device_interface_config_t spi_config =
     {
@@ -66,61 +85,42 @@ int ADS131::init(void)
         .post_cb = NULL
     };
 
-    if(spi_bus_add_device(spi_dev, &spi_config, &spi_handle) != ESP_OK)
-    {
-        goto error;
-    }
+    ESP_ERROR_CHECK(spi_bus_add_device(spi_dev, &spi_config, &spi_handle));
 
-    if(command(CMD_RESET))
-    {
-        goto error;
-    }
-
+    command(CMD_RESET);
     usleep(10);
 
-    if(command(CMD_SDATAC))
-    {
-        goto error;
-    }
+    command(CMD_SDATAC);
 
-    if(readReg(REG_ID, &id_reg, sizeof(id_reg)))
-    {
-        goto error;
-    }
-
+    readReg(REG_ID, &id_reg, sizeof(id_reg));
     printf("ID = %02x\n", id_reg);
 
     xSemaphoreGive(mutex);
-    return 0;
-
-error:
-    xSemaphoreGive(mutex);
-    return -1;
+    return;
 }
 
-int ADS131::read(float* data, size_t channels)
+void ADS131::read(float* data, size_t channels)
 {
     while(gpio_get_level(drdy_pin) == 1)
     {
-        /* TODO: Block on semaphore */
+        if(xSemaphoreTake(drdy_sem, portMAX_DELAY) == pdFALSE)
+        {
+
+        }
     }
 
     if(xSemaphoreTake(mutex, portMAX_DELAY) == pdFALSE)
     {
-        return -1;
+
     }
 
 
 
     xSemaphoreGive(mutex);
-    return 0;
-
-//error:
-//    xSemaphoreGive(mutex);
-//    return -1;
+    return;
 }
 
-int ADS131::command(uint8_t cmd)
+void ADS131::command(uint8_t cmd)
 {
     spi_transaction_t trans;
 
@@ -132,19 +132,16 @@ int ADS131::command(uint8_t cmd)
 
     gpio_set_level(cs_pin, 0);
 
-    if(spi_device_transmit(spi_handle, &trans) != ESP_OK)
-    {
-        return -1;
-    }
+    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans));
 
     usleep(2);
     gpio_set_level(cs_pin, 1);
     usleep(1);
 
-    return 0;
+    return;
 }
 
-int ADS131::readReg(uint8_t addr, void* data, size_t len)
+void ADS131::readReg(uint8_t addr, void* data, size_t len)
 {
     spi_transaction_t trans[3];
 
@@ -163,33 +160,19 @@ int ADS131::readReg(uint8_t addr, void* data, size_t len)
 
     gpio_set_level(cs_pin, 0);
 
-    if(spi_device_transmit(spi_handle, &trans[0]) != ESP_OK)
-    {
-        return -1;
-    }
-
-    /* For multibyte commands, need to wait 4 tCLK cycles between the first and
-     * second bytes */
+    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[0]))
+    usleep(2);
+    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[1]));
+    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[2]));
     usleep(2);
 
-    if(spi_device_transmit(spi_handle, &trans[1]) != ESP_OK)
-    {
-        return -1;
-    }
-
-    if(spi_device_transmit(spi_handle, &trans[2]) != ESP_OK)
-    {
-        return -1;
-    }
-
-    usleep(2);
     gpio_set_level(cs_pin, 1);
     usleep(1);
 
-    return 0;
+    return;
 }
 
-int ADS131::writeReg(uint8_t addr, const void* data, size_t len)
+void ADS131::writeReg(uint8_t addr, const void* data, size_t len)
 {
     spi_transaction_t trans[3];
 
@@ -208,28 +191,14 @@ int ADS131::writeReg(uint8_t addr, const void* data, size_t len)
 
     gpio_set_level(cs_pin, 0);
 
-    if(spi_device_transmit(spi_handle, &trans[0]) != ESP_OK)
-    {
-        return -1;
-    }
-
-    /* For multibyte commands, need to wait 4 tCLK cycles between the first and
-     * second bytes */
+    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[0]));
+    usleep(2);
+    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[1]));
+    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[2]));
     usleep(2);
 
-    if(spi_device_transmit(spi_handle, &trans[1]) != ESP_OK)
-    {
-        return -1;
-    }
-
-    if(spi_device_transmit(spi_handle, &trans[2]) != ESP_OK)
-    {
-        return -1;
-    }
-
-    usleep(2);
     gpio_set_level(cs_pin, 1);
     usleep(1);
 
-    return 0;
+    return;
 }

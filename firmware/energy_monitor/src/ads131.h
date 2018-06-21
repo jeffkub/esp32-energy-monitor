@@ -16,21 +16,25 @@ public:
     ADS131(spi_host_device_t spi, gpio_num_t cs, gpio_num_t drdy);
     ~ADS131();
 
-    int init(void);
+    void init(void);
 
-    int read(float* data, size_t channels);
+    void read(float* data, size_t channels);
 
 private:
     spi_host_device_t spi_dev;
     spi_device_handle_t spi_handle;
     gpio_num_t cs_pin;
     gpio_num_t drdy_pin;
+    gpio_isr_handle_t drdy_isr_handle;
 
     SemaphoreHandle_t mutex;
+    SemaphoreHandle_t drdy_sem;
 
-    int command(uint8_t cmd);
-    int readReg(uint8_t addr, void* data, size_t len);
-    int writeReg(uint8_t addr, const void* data, size_t len);
+    static void drdy_irq_handler(void* arg);
+
+    void command(uint8_t cmd);
+    void readReg(uint8_t addr, void* data, size_t len);
+    void writeReg(uint8_t addr, const void* data, size_t len);
 };
 
 #endif /* #ifndef _ADS131_H_ */
