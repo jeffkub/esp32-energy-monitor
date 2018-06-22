@@ -19,6 +19,14 @@
 
 #define REG_ID          0x00
 
+#define BITS_PER_CHAN   24
+
+static inline int32_t sign_extend(int32_t x, int bits)
+{
+    int32_t m = 1 << (bits - 1);
+    return (x ^ m) - m;
+}
+
 void IRAM_ATTR ADS131::drdy_irq_handler(void* arg)
 {
     ADS131* inst = (ADS131*)arg;
@@ -105,6 +113,7 @@ void ADS131::read(float* data, size_t channels)
 {
     spi_transaction_t trans[2] = {};
     uint8_t buffer[27];
+    int32_t raw_val;
 
     trans[0].flags = SPI_TRANS_USE_TXDATA;
     trans[0].length = 8;
@@ -124,9 +133,23 @@ void ADS131::read(float* data, size_t channels)
     }
 
     /* Perform SPI transfer */
+    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[0]));
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[1]));
+    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
 
+    /* TODO: Check the status word */
+
+    /* Process channel data */
+    for(unsigned chan = 0; chan < channels; chan++)
+    {
+        raw_val = sign_extend(
+            ((int32_t)buffer[(chan+1)*3 + 0]) << 16 |
+            ((int32_t)buffer[(chan+1)*3 + 1]) <<  8 |
+            ((int32_t)buffer[(chan+1)*3 + 2]) <<  0, BITS_PER_CHAN);
+
+        data[chan] = (float)raw_val / (float)(1 << (BITS_PER_CHAN-1));
+    }
 
     xSemaphoreGive(mutex);
 }
