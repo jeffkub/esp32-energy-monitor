@@ -1,5 +1,6 @@
-#include <stdlib.h>
-#include <stdio.h>
+#include <cassert>
+#include <cstdlib>
+#include <cstdio>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -67,8 +68,6 @@ static void platformInit(void)
 
     /* Driver initialization */
     adc.init();
-
-    return;
 }
 
 static void blinkTask(void *arg)
@@ -81,8 +80,6 @@ static void blinkTask(void *arg)
         gpio_set_level(LED1_PIN, 0);
         vTaskDelay(250 / portTICK_PERIOD_MS);
     }
-
-    return;
 }
 
 extern "C" void app_main()
@@ -91,7 +88,5 @@ extern "C" void app_main()
 
     platformInit();
 
-    xTaskCreate(&blinkTask, "blinkTask", configMINIMAL_STACK_SIZE, NULL, 5, NULL);
-
-    return;
+    assert(xTaskCreate(&blinkTask, "blinkTask", configMINIMAL_STACK_SIZE, NULL, 5, NULL) == pdPASS);
 }

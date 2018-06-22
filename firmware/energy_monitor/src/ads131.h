@@ -1,8 +1,8 @@
 #ifndef _ADS131_H_
 #define _ADS131_H_
 
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -17,6 +17,9 @@ public:
     ~ADS131();
 
     void init(void);
+
+    void start(void);
+    void stop(void);
 
     void read(float* data, size_t channels);
 

@@ -1,7 +1,7 @@
 #include "ads131.h"
 
-#include <stdexcept>
-#include <cstring>
+#include <cassert>
+#include <unistd.h>
 
 #include <freertos/task.h>
 
@@ -24,8 +24,6 @@ void IRAM_ATTR ADS131::drdy_irq_handler(void* arg)
     ADS131* inst = (ADS131*)arg;
 
     xSemaphoreGiveFromISR(inst->drdy_sem, NULL);
-
-    return;
 }
 
 ADS131::ADS131(spi_host_device_t spi, gpio_num_t cs, gpio_num_t drdy) :
@@ -34,37 +32,25 @@ ADS131::ADS131(spi_host_device_t spi, gpio_num_t cs, gpio_num_t drdy) :
     drdy_pin(drdy)
 {
     mutex = xSemaphoreCreateMutex();
-    if(mutex == NULL)
-    {
-        /* ERROR */
-    }
+    assert(mutex != NULL);
 
     drdy_sem = xSemaphoreCreateBinary();
-    if(drdy_sem == NULL)
-    {
-        /* ERROR */
-    }
-
-    return;
+    assert(drdy_sem != NULL);
 }
 
 ADS131::~ADS131()
 {
     vSemaphoreDelete(mutex);
     vSemaphoreDelete(drdy_sem);
-
-    return;
 }
 
 void ADS131::init(void)
 {
     uint8_t id_reg;
 
-    if(xSemaphoreTake(mutex, portMAX_DELAY) == pdFALSE)
-    {
+    xSemaphoreTake(mutex, portMAX_DELAY);
 
-    }
-
+    /* Setup interrupt handler for DRDY pin */
     ESP_ERROR_CHECK(gpio_set_intr_type(drdy_pin, GPIO_INTR_NEGEDGE));
     ESP_ERROR_CHECK(gpio_isr_handler_add(drdy_pin, drdy_irq_handler, this));
 
@@ -87,65 +73,84 @@ void ADS131::init(void)
 
     ESP_ERROR_CHECK(spi_bus_add_device(spi_dev, &spi_config, &spi_handle));
 
+    /* Issue reset command */
     command(CMD_RESET);
     usleep(10);
 
+    /* By default the device is in read data continuous mode, cancel it */
     command(CMD_SDATAC);
 
+    /* Check the device ID */
     readReg(REG_ID, &id_reg, sizeof(id_reg));
     printf("ID = %02x\n", id_reg);
 
     xSemaphoreGive(mutex);
-    return;
+}
+
+void ADS131::start(void)
+{
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    command(CMD_START);
+    xSemaphoreGive(mutex);
+}
+
+void ADS131::stop(void)
+{
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    command(CMD_STOP);
+    xSemaphoreGive(mutex);
 }
 
 void ADS131::read(float* data, size_t channels)
 {
+    spi_transaction_t trans[2] = {};
+    uint8_t buffer[27];
+
+    trans[0].flags = SPI_TRANS_USE_TXDATA;
+    trans[0].length = 8;
+    trans[0].tx_data[0] = CMD_RDATA;
+
+    trans[1].length = sizeof(buffer) * 8;
+    trans[1].rx_buffer = buffer;
+
+    xSemaphoreTake(mutex, portMAX_DELAY);
+
+    /* Wait for DRDY pin to go low */
     while(gpio_get_level(drdy_pin) == 1)
     {
-        if(xSemaphoreTake(drdy_sem, portMAX_DELAY) == pdFALSE)
-        {
-
-        }
+        xSemaphoreGive(mutex);
+        xSemaphoreTake(drdy_sem, portMAX_DELAY);
+        xSemaphoreTake(mutex, portMAX_DELAY);
     }
 
-    if(xSemaphoreTake(mutex, portMAX_DELAY) == pdFALSE)
-    {
-
-    }
-
+    /* Perform SPI transfer */
+    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[0]));
+    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[1]));
 
 
     xSemaphoreGive(mutex);
-    return;
 }
 
 void ADS131::command(uint8_t cmd)
 {
-    spi_transaction_t trans;
-
-    memset(&trans, 0, sizeof(trans));
+    spi_transaction_t trans = {};
 
     trans.flags = SPI_TRANS_USE_TXDATA;
     trans.length = 8;
     trans.tx_data[0] = cmd;
 
-    gpio_set_level(cs_pin, 0);
+    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
 
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans));
-
     usleep(2);
-    gpio_set_level(cs_pin, 1);
-    usleep(1);
 
-    return;
+    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
+    usleep(1);
 }
 
 void ADS131::readReg(uint8_t addr, void* data, size_t len)
 {
-    spi_transaction_t trans[3];
-
-    memset(trans, 0, sizeof(trans));
+    spi_transaction_t trans[3] = {};
 
     trans[0].flags = SPI_TRANS_USE_TXDATA;
     trans[0].length = 8;
@@ -158,7 +163,7 @@ void ADS131::readReg(uint8_t addr, void* data, size_t len)
     trans[2].length = len * 8;
     trans[2].rx_buffer = data;
 
-    gpio_set_level(cs_pin, 0);
+    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
 
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[0]))
     usleep(2);
@@ -166,17 +171,13 @@ void ADS131::readReg(uint8_t addr, void* data, size_t len)
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[2]));
     usleep(2);
 
-    gpio_set_level(cs_pin, 1);
+    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
     usleep(1);
-
-    return;
 }
 
 void ADS131::writeReg(uint8_t addr, const void* data, size_t len)
 {
-    spi_transaction_t trans[3];
-
-    memset(trans, 0, sizeof(trans));
+    spi_transaction_t trans[3] = {};
 
     trans[0].flags = SPI_TRANS_USE_TXDATA;
     trans[0].length = 8;
@@ -189,7 +190,7 @@ void ADS131::writeReg(uint8_t addr, const void* data, size_t len)
     trans[2].length = len * 8;
     trans[2].tx_buffer = data;
 
-    gpio_set_level(cs_pin, 0);
+    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
 
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[0]));
     usleep(2);
@@ -197,8 +198,6 @@ void ADS131::writeReg(uint8_t addr, const void* data, size_t len)
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[2]));
     usleep(2);
 
-    gpio_set_level(cs_pin, 1);
+    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
     usleep(1);
-
-    return;
 }
