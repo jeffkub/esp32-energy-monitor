@@ -5,21 +5,29 @@
 
 #include <freertos/task.h>
 
-#define CMD_WAKEUP      (0x02)
-#define CMD_STANDBY     (0x04)
-#define CMD_RESET       (0x06)
-#define CMD_START       (0x08)
-#define CMD_STOP        (0x0A)
-#define CMD_OFFSETCAL   (0x1A)
-#define CMD_RDATAC      (0x10)
-#define CMD_SDATAC      (0x11)
-#define CMD_RDATA       (0x12)
-#define CMD_RREG(x)     (0x20 | ((x) & 0x1F))
-#define CMD_WREG(x)     (0x40 | ((x) & 0x1F))
+#define CMD_WAKEUP          (0x02)
+#define CMD_STANDBY         (0x04)
+#define CMD_RESET           (0x06)
+#define CMD_START           (0x08)
+#define CMD_STOP            (0x0A)
+#define CMD_OFFSETCAL       (0x1A)
+#define CMD_RDATAC          (0x10)
+#define CMD_SDATAC          (0x11)
+#define CMD_RDATA           (0x12)
+#define CMD_RREG(reg)       (0x20 | ((reg) & 0x1F))
+#define CMD_WREG(reg)       (0x40 | ((reg) & 0x1F))
 
-#define REG_ID          0x00
+#define REG_ID              (0x00)
+#define REG_CONFIG1         (0x01)
+#define REG_CONFIG2         (0x02)
+#define REG_CONFIG3         (0x03)
+#define REG_FAULT           (0x04)
+#define REG_CHnSET(n)       (0x05 + (n))
+#define REG_FAULT_STATP     (0x12)
+#define REG_FAULT_STATN     (0x13)
+#define REG_GPIO            (0x14)
 
-#define BITS_PER_CHAN   24
+#define BITS_PER_CHAN       24
 
 static inline int32_t sign_extend(int32_t x, int bits)
 {
@@ -87,10 +95,27 @@ void ADS131::init(void)
 
     /* By default the device is in read data continuous mode, cancel it */
     command(CMD_SDATAC);
+    usleep(2);
 
     /* Check the device ID */
     readReg(REG_ID, &id_reg, sizeof(id_reg));
     printf("ID = %02x\n", id_reg);
+
+    xSemaphoreGive(mutex);
+
+    /* Configure for 24 bit-per-sample */
+    setDataRate(DataRate_24bit_16ksps);
+}
+
+void ADS131::setDataRate(enum DataRate rate)
+{
+    uint8_t reg;
+
+    xSemaphoreTake(mutex, portMAX_DELAY);
+
+    readReg(REG_CONFIG1, &reg, sizeof(reg));
+    reg = (reg & ~0x07) | (uint8_t)rate;
+    writeReg(REG_CONFIG1, &reg, sizeof(reg));
 
     xSemaphoreGive(mutex);
 }
@@ -113,6 +138,7 @@ void ADS131::read(float* data, size_t channels)
 {
     spi_transaction_t trans[2] = {};
     uint8_t buffer[27];
+    uint8_t* offset;
     int32_t raw_val;
 
     trans[0].flags = SPI_TRANS_USE_TXDATA;
@@ -134,20 +160,24 @@ void ADS131::read(float* data, size_t channels)
 
     /* Perform SPI transfer */
     ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
+
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[0]));
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[1]));
-    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
+    usleep(2);
 
-    /* TODO: Check the status word */
+    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
 
     /* Process channel data */
     for(unsigned chan = 0; chan < channels; chan++)
     {
+        /* Sign extend 24 bit integer to 32 bit integer */
+        offset = &buffer[(chan + 1) * 3];
         raw_val = sign_extend(
-            ((int32_t)buffer[(chan+1)*3 + 0]) << 16 |
-            ((int32_t)buffer[(chan+1)*3 + 1]) <<  8 |
-            ((int32_t)buffer[(chan+1)*3 + 2]) <<  0, BITS_PER_CHAN);
+            ((int32_t)offset[0]) << 16 |
+            ((int32_t)offset[1]) <<  8 |
+            ((int32_t)offset[2]) <<  0, BITS_PER_CHAN);
 
+        /* Convert to float and scale to +/-1 range */
         data[chan] = (float)raw_val / (float)(1 << (BITS_PER_CHAN-1));
     }
 

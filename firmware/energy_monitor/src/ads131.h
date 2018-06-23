@@ -13,10 +13,23 @@
 class ADS131
 {
 public:
+    enum DataRate
+    {
+        /* DataRate_16bit_64ksps = 0, 16 bit not supported */
+        /* DataRate_16bit_32ksps = 1, 16 bit not supported */
+        DataRate_24bit_16ksps = 2,
+        DataRate_24bit_8ksps = 3,
+        DataRate_24bit_4ksps = 4,
+        DataRate_24bit_2ksps = 5,
+        DataRate_24bit_1ksps = 6
+    };
+
     ADS131(spi_host_device_t spi, gpio_num_t cs, gpio_num_t drdy);
     ~ADS131();
 
     void init(void);
+
+    void setDataRate(enum DataRate rate);
 
     void start(void);
     void stop(void);
