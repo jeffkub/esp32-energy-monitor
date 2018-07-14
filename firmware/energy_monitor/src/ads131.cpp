@@ -27,6 +27,12 @@
 #define REG_FAULT_STATN     (0x13)
 #define REG_GPIO            (0x14)
 
+#define CONFIG1_DR(x)       ((x) << 0)
+#define CONFIG1_DR_MASK     (0x7 << 0)
+
+#define CONFIG3_PDB_REFBUF  (  1 << 7)
+#define CONFIG3_VREF_4V     (  1 << 5)
+
 #define BITS_PER_CHAN       24
 
 static inline int32_t sign_extend(int32_t x, int bits)
@@ -97,14 +103,32 @@ void ADS131::init(void)
     command(CMD_SDATAC);
     usleep(2);
 
-    /* Check the device ID */
+    /* Check the device ID register */
     readReg(REG_ID, &id_reg, sizeof(id_reg));
-    printf("ID = %02x\n", id_reg);
+    assert(id_reg == 0xD2);
 
     xSemaphoreGive(mutex);
+}
 
-    /* Configure for 24 bit-per-sample */
-    setDataRate(DataRate_24bit_16ksps);
+void ADS131::setVRef(VRef config)
+{
+    uint8_t reg;
+
+    xSemaphoreTake(mutex, portMAX_DELAY);
+
+    readReg(REG_CONFIG3, &reg, sizeof(reg));
+
+    /* Enable the internal reference buffer for a internal vref */
+    reg &= ~CONFIG3_PDB_REFBUF;
+    reg |= (config == VRef_External) ? 0 : CONFIG3_PDB_REFBUF;
+
+    /* Internal vref voltage */
+    reg &= ~CONFIG3_VREF_4V;
+    reg |= (config == VRef_Internal_4V) ? CONFIG3_VREF_4V : 0;
+
+    writeReg(REG_CONFIG3, &reg, sizeof(reg));
+
+    xSemaphoreGive(mutex);
 }
 
 void ADS131::setDataRate(enum DataRate rate)
@@ -114,7 +138,8 @@ void ADS131::setDataRate(enum DataRate rate)
     xSemaphoreTake(mutex, portMAX_DELAY);
 
     readReg(REG_CONFIG1, &reg, sizeof(reg));
-    reg = (reg & ~0x07) | (uint8_t)rate;
+    reg &= ~CONFIG1_DR_MASK;
+    reg |= CONFIG1_DR((uint8_t)rate);
     writeReg(REG_CONFIG1, &reg, sizeof(reg));
 
     xSemaphoreGive(mutex);

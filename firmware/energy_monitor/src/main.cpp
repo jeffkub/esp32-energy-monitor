@@ -68,6 +68,8 @@ static void platformInit(void)
 
     /* Driver initialization */
     adc.init();
+    adc.setVRef(ADS131::VRef_Internal_4V);
+    adc.setDataRate(ADS131::DataRate_24bit_16ksps);
 }
 
 static void blinkTask(void *arg)
@@ -89,4 +91,6 @@ extern "C" void app_main()
     platformInit();
 
     assert(xTaskCreate(&blinkTask, "blinkTask", configMINIMAL_STACK_SIZE, NULL, 5, NULL) == pdPASS);
+
+    vTaskSuspend(NULL);
 }

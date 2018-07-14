@@ -24,11 +24,19 @@ public:
         DataRate_24bit_1ksps = 6
     };
 
+    enum VRef
+    {
+        VRef_External = 0,
+        VRef_Internal_2_4V = 1,
+        VRef_Internal_4V = 2
+    };
+
     ADS131(spi_host_device_t spi, gpio_num_t cs, gpio_num_t drdy);
     ~ADS131();
 
     void init(void);
 
+    void setVRef(VRef config);
     void setDataRate(enum DataRate rate);
 
     void start(void);
