@@ -14,6 +14,7 @@
 
 static void platformInit(void);
 static void blinkTask(void *arg);
+static void adcTestTask(void *arg);
 
 static ADS131 adc(HSPI_HOST, CS_PIN, ADC_DRDY_PIN);
 
@@ -84,6 +85,34 @@ static void blinkTask(void *arg)
     }
 }
 
+#define SAMPLE_COUNT 1000
+#define CHANNEL_COUNT 8
+
+static float buffer[SAMPLE_COUNT][CHANNEL_COUNT];
+
+static void adcTestTask(void *arg)
+{
+    while(1)
+    {
+        for(int index = 0; index < SAMPLE_COUNT; index++)
+        {
+            adc.read(&buffer[index][0], CHANNEL_COUNT);
+        }
+
+        for(int index = 0; index < SAMPLE_COUNT; index++)
+        {
+            for(int chan = 0; chan < CHANNEL_COUNT; chan++)
+            {
+                printf("%0.10f, ", buffer[index][chan]);
+            }
+
+            printf("\r\n");
+        }
+
+        vTaskSuspend(NULL);
+    }
+}
+
 extern "C" void app_main()
 {
     printf("Program start\n");
@@ -91,6 +120,5 @@ extern "C" void app_main()
     platformInit();
 
     assert(xTaskCreate(&blinkTask, "blinkTask", configMINIMAL_STACK_SIZE, NULL, 5, NULL) == pdPASS);
-
-    vTaskSuspend(NULL);
+    assert(xTaskCreate(&adcTestTask, "adcTestTask", configMINIMAL_STACK_SIZE, NULL, 5, NULL) == pdPASS);
 }
