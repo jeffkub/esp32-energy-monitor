@@ -57,8 +57,8 @@ private:
     static void drdy_irq_handler(void* arg);
 
     void command(uint8_t cmd);
-    void readReg(uint8_t addr, void* data, size_t len);
-    void writeReg(uint8_t addr, const void* data, size_t len);
+    uint8_t readReg(uint8_t addr);
+    void writeReg(uint8_t addr, uint8_t val);
 };
 
 #endif /* #ifndef _ADS131_H_ */

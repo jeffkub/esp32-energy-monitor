@@ -94,10 +94,18 @@ static void adcTestTask(void *arg)
 {
     while(1)
     {
+        printf("Capture start\r\n");
+
+        adc.start();
+
         for(int index = 0; index < SAMPLE_COUNT; index++)
         {
             adc.read(&buffer[index][0], CHANNEL_COUNT);
         }
+
+        adc.stop();
+
+        printf("Capture complete\r\n");
 
         for(int index = 0; index < SAMPLE_COUNT; index++)
         {
@@ -107,6 +115,7 @@ static void adcTestTask(void *arg)
             }
 
             printf("\r\n");
+            taskYIELD();
         }
 
         vTaskSuspend(NULL);
@@ -119,6 +128,6 @@ extern "C" void app_main()
 
     platformInit();
 
-    assert(xTaskCreate(&blinkTask, "blinkTask", configMINIMAL_STACK_SIZE, NULL, 5, NULL) == pdPASS);
-    assert(xTaskCreate(&adcTestTask, "adcTestTask", configMINIMAL_STACK_SIZE, NULL, 5, NULL) == pdPASS);
+    assert(xTaskCreate(&blinkTask, "blinkTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL) == pdPASS);
+    assert(xTaskCreate(&adcTestTask, "adcTestTask", 4096, NULL, 5, NULL) == pdPASS);
 }

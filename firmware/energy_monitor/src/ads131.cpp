@@ -5,6 +5,7 @@
 
 #include <freertos/task.h>
 
+#define CMD_NOP             (0x00)
 #define CMD_WAKEUP          (0x02)
 #define CMD_STANDBY         (0x04)
 #define CMD_RESET           (0x06)
@@ -104,7 +105,7 @@ void ADS131::init(void)
     usleep(2);
 
     /* Check the device ID register */
-    readReg(REG_ID, &id_reg, sizeof(id_reg));
+    id_reg = readReg(REG_ID);
     assert(id_reg == 0xD2);
 
     xSemaphoreGive(mutex);
@@ -116,7 +117,7 @@ void ADS131::setVRef(VRef config)
 
     xSemaphoreTake(mutex, portMAX_DELAY);
 
-    readReg(REG_CONFIG3, &reg, sizeof(reg));
+    reg = readReg(REG_CONFIG3);
 
     /* Enable the internal reference buffer for a internal vref */
     reg &= ~CONFIG3_PDB_REFBUF;
@@ -126,9 +127,12 @@ void ADS131::setVRef(VRef config)
     reg &= ~CONFIG3_VREF_4V;
     reg |= (config == VRef_Internal_4V) ? CONFIG3_VREF_4V : 0;
 
-    writeReg(REG_CONFIG3, &reg, sizeof(reg));
+    writeReg(REG_CONFIG3, reg);
 
     xSemaphoreGive(mutex);
+
+    /* Wait for VREF startup time */
+    vTaskDelay(150 / portTICK_PERIOD_MS);
 }
 
 void ADS131::setDataRate(enum DataRate rate)
@@ -137,10 +141,10 @@ void ADS131::setDataRate(enum DataRate rate)
 
     xSemaphoreTake(mutex, portMAX_DELAY);
 
-    readReg(REG_CONFIG1, &reg, sizeof(reg));
+    reg = readReg(REG_CONFIG1);
     reg &= ~CONFIG1_DR_MASK;
     reg |= CONFIG1_DR((uint8_t)rate);
-    writeReg(REG_CONFIG1, &reg, sizeof(reg));
+    writeReg(REG_CONFIG1, reg);
 
     xSemaphoreGive(mutex);
 }
@@ -162,16 +166,17 @@ void ADS131::stop(void)
 void ADS131::read(float* data, size_t channels)
 {
     spi_transaction_t trans[2] = {};
-    uint8_t buffer[27];
-    uint8_t* offset;
     int32_t raw_val;
 
     trans[0].flags = SPI_TRANS_USE_TXDATA;
     trans[0].length = 8;
     trans[0].tx_data[0] = CMD_RDATA;
 
-    trans[1].length = sizeof(buffer) * 8;
-    trans[1].rx_buffer = buffer;
+    trans[1].flags = SPI_TRANS_USE_TXDATA | SPI_TRANS_USE_RXDATA;
+    trans[1].length = BITS_PER_CHAN;
+    trans[1].tx_data[0] = CMD_NOP;
+    trans[1].tx_data[1] = CMD_NOP;
+    trans[1].tx_data[2] = CMD_NOP;
 
     xSemaphoreTake(mutex, portMAX_DELAY);
 
@@ -187,24 +192,28 @@ void ADS131::read(float* data, size_t channels)
     ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
 
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[0]));
+
+    /* Read status word */
     ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[1]));
-    usleep(2);
 
-    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
-
-    /* Process channel data */
+    /* Read channel data */
     for(unsigned chan = 0; chan < channels; chan++)
     {
+        ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans[1]));
+
         /* Sign extend 24 bit integer to 32 bit integer */
-        offset = &buffer[(chan + 1) * 3];
         raw_val = sign_extend(
-            ((int32_t)offset[0]) << 16 |
-            ((int32_t)offset[1]) <<  8 |
-            ((int32_t)offset[2]) <<  0, BITS_PER_CHAN);
+            ((int32_t)trans[1].rx_data[0]) << 16 |
+            ((int32_t)trans[1].rx_data[1]) <<  8 |
+            ((int32_t)trans[1].rx_data[2]) <<  0, BITS_PER_CHAN);
 
         /* Convert to float and scale to +/-1 range */
         data[chan] = (float)raw_val / (float)(1 << (BITS_PER_CHAN-1));
     }
+
+    usleep(2);
+
+    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
 
     xSemaphoreGive(mutex);
 }
@@ -226,20 +235,21 @@ void ADS131::command(uint8_t cmd)
     usleep(1);
 }
 
-void ADS131::readReg(uint8_t addr, void* data, size_t len)
+uint8_t ADS131::readReg(uint8_t addr)
 {
     spi_transaction_t trans[3] = {};
 
     trans[0].flags = SPI_TRANS_USE_TXDATA;
     trans[0].length = 8;
-    trans[0].tx_data[0] = CMD_RREG(addr);
+    trans[0].tx_data[0] = CMD_RREG(addr);   /* Command */
 
     trans[1].flags = SPI_TRANS_USE_TXDATA;
     trans[1].length = 8;
-    trans[1].tx_data[0] = len - 1;
+    trans[1].tx_data[0] = 0;                /* Len - 1 */
 
-    trans[2].length = len * 8;
-    trans[2].rx_buffer = data;
+    trans[2].flags = SPI_TRANS_USE_TXDATA | SPI_TRANS_USE_RXDATA;
+    trans[2].length = 8;
+    trans[2].tx_data[0] = CMD_NOP;
 
     ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
 
@@ -251,22 +261,25 @@ void ADS131::readReg(uint8_t addr, void* data, size_t len)
 
     ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
     usleep(1);
+
+    return trans[2].rx_data[0];
 }
 
-void ADS131::writeReg(uint8_t addr, const void* data, size_t len)
+void ADS131::writeReg(uint8_t addr, uint8_t val)
 {
     spi_transaction_t trans[3] = {};
 
     trans[0].flags = SPI_TRANS_USE_TXDATA;
     trans[0].length = 8;
-    trans[0].tx_data[0] = CMD_WREG(addr);
+    trans[0].tx_data[0] = CMD_WREG(addr);       /* Command */
 
     trans[1].flags = SPI_TRANS_USE_TXDATA;
     trans[1].length = 8;
-    trans[1].tx_data[0] = len - 1;
+    trans[1].tx_data[0] = 0;                    /* Len - 1 */
 
-    trans[2].length = len * 8;
-    trans[2].tx_buffer = data;
+    trans[2].flags = SPI_TRANS_USE_TXDATA;
+    trans[2].length = 8;
+    trans[2].tx_data[0] = val;
 
     ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
 
