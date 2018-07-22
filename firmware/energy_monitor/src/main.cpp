@@ -11,12 +11,14 @@
 
 #include "platform.h"
 #include "ads131.h"
+#include "daq.h"
 
 static void platformInit(void);
 static void blinkTask(void *arg);
 static void adcTestTask(void *arg);
 
 static ADS131 adc(HSPI_HOST, CS_PIN, ADC_DRDY_PIN);
+static DAQ daq(&adc);
 
 static void platformInit(void)
 {
@@ -136,4 +138,6 @@ extern "C" void app_main()
 
     assert(xTaskCreate(&blinkTask, "blinkTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL) == pdPASS);
     assert(xTaskCreate(&adcTestTask, "adcTestTask", 4096, NULL, 5, NULL) == pdPASS);
+
+    //daq.start();
 }

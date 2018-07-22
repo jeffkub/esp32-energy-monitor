@@ -10,7 +10,16 @@
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
 
-class ADS131
+class ADC
+{
+public:
+    virtual void start(void) = 0;
+    virtual void stop(void) = 0;
+
+    virtual void read(float* data, size_t channels) = 0;
+};
+
+class ADS131 : public ADC
 {
 public:
     enum DataRate
@@ -39,10 +48,10 @@ public:
     void setVRef(VRef config);
     void setDataRate(enum DataRate rate);
 
-    void start(void);
-    void stop(void);
+    virtual void start(void);
+    virtual void stop(void);
 
-    void read(float* data, size_t channels);
+    virtual void read(float* data, size_t channels);
 
 private:
     spi_host_device_t spi_dev;
@@ -54,7 +63,7 @@ private:
     SemaphoreHandle_t mutex;
     SemaphoreHandle_t drdy_sem;
 
-    static void drdy_irq_handler(void* arg);
+    static void drdyIrqHandler(void* arg);
 
     void command(uint8_t cmd);
     uint8_t readReg(uint8_t addr);

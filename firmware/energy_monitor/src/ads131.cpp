@@ -43,7 +43,7 @@ static inline int32_t sign_extend(int32_t x, int bits)
     return (x ^ m) - m;
 }
 
-void IRAM_ATTR ADS131::drdy_irq_handler(void* arg)
+void IRAM_ATTR ADS131::drdyIrqHandler(void* arg)
 {
     ADS131* inst = (ADS131*)arg;
     BaseType_t do_yield = pdFALSE;
@@ -82,7 +82,7 @@ void ADS131::init(void)
 
     /* Setup interrupt handler for DRDY pin */
     ESP_ERROR_CHECK(gpio_set_intr_type(drdy_pin, GPIO_INTR_NEGEDGE));
-    ESP_ERROR_CHECK(gpio_isr_handler_add(drdy_pin, drdy_irq_handler, this));
+    ESP_ERROR_CHECK(gpio_isr_handler_add(drdy_pin, drdyIrqHandler, this));
 
     spi_device_interface_config_t spi_config =
     {
