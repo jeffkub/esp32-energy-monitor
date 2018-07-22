@@ -94,28 +94,34 @@ static void adcTestTask(void *arg)
 {
     while(1)
     {
-        printf("Capture start\r\n");
-
         adc.start();
+
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+
+        printf("Capture start\r\n");
 
         for(int index = 0; index < SAMPLE_COUNT; index++)
         {
             adc.read(&buffer[index][0], CHANNEL_COUNT);
         }
 
-        adc.stop();
-
         printf("Capture complete\r\n");
+
+        adc.stop();
 
         for(int index = 0; index < SAMPLE_COUNT; index++)
         {
             for(int chan = 0; chan < CHANNEL_COUNT; chan++)
             {
-                printf("%0.10f, ", buffer[index][chan]);
+                printf("%0.9f, ", buffer[index][chan]);
             }
 
             printf("\r\n");
-            taskYIELD();
+
+            if(index % 100 == 0)
+            {
+                vTaskDelay(1);
+            }
         }
 
         vTaskSuspend(NULL);
