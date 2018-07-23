@@ -45,11 +45,14 @@ void DAQ::mainLoop(void)
         for(int index = 0; index < SAMPLE_COUNT; index++)
         {
             adc_dev->read(&buffer[index][0], CHANNEL_COUNT);
+            V1Rms.input(buffer[index][7]);
         }
 
         printf("Capture complete\r\n");
 
         adc_dev->stop();
+
+        V1Rms.calculate();
 
         for(int index = 0; index < SAMPLE_COUNT; index++)
         {

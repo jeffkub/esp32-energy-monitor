@@ -4,6 +4,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "data_processor.h"
+
 class ADC;
 
 class DAQ
@@ -18,6 +20,8 @@ private:
     ADC* adc_dev;
 
     TaskHandle_t task;
+
+    RootMeanSquare V1Rms;
 
     static void taskEntry(void *arg);
 
