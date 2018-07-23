@@ -15,7 +15,6 @@
 
 static void platformInit(void);
 static void blinkTask(void *arg);
-static void adcTestTask(void *arg);
 
 static ADS131 adc(HSPI_HOST, CS_PIN, ADC_DRDY_PIN);
 static DAQ daq(&adc);
@@ -87,49 +86,6 @@ static void blinkTask(void *arg)
     }
 }
 
-#define SAMPLE_COUNT 1000
-#define CHANNEL_COUNT 8
-
-static float buffer[SAMPLE_COUNT][CHANNEL_COUNT];
-
-static void adcTestTask(void *arg)
-{
-    while(1)
-    {
-        adc.start();
-
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-
-        printf("Capture start\r\n");
-
-        for(int index = 0; index < SAMPLE_COUNT; index++)
-        {
-            adc.read(&buffer[index][0], CHANNEL_COUNT);
-        }
-
-        printf("Capture complete\r\n");
-
-        adc.stop();
-
-        for(int index = 0; index < SAMPLE_COUNT; index++)
-        {
-            for(int chan = 0; chan < CHANNEL_COUNT; chan++)
-            {
-                printf("%0.9f, ", buffer[index][chan]);
-            }
-
-            printf("\r\n");
-
-            if(index % 100 == 0)
-            {
-                vTaskDelay(1);
-            }
-        }
-
-        vTaskSuspend(NULL);
-    }
-}
-
 extern "C" void app_main()
 {
     printf("Program start\n");
@@ -137,7 +93,6 @@ extern "C" void app_main()
     platformInit();
 
     assert(xTaskCreate(&blinkTask, "blinkTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL) == pdPASS);
-    assert(xTaskCreate(&adcTestTask, "adcTestTask", 4096, NULL, 5, NULL) == pdPASS);
 
-    //daq.start();
+    daq.start();
 }
