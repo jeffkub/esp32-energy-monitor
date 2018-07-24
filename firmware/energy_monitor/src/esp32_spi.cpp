@@ -7,6 +7,7 @@ void IRAM_ATTR ESP32SPI::spiIrqHandler(void* arg)
     ESP32SPI* inst = (ESP32SPI*)arg;
     BaseType_t do_yield = pdFALSE;
 
+    esp_intr_disable(inst->intr_handle);
     xSemaphoreGiveFromISR(inst->done_sem, &do_yield);
 
     if(do_yield)
@@ -36,12 +37,17 @@ void ESP32SPI::init(void)
 {
     xSemaphoreTake(mutex, portMAX_DELAY);
 
-    ESP_ERROR_CHECK(esp_intr_alloc(irq_num, ESP_INTR_FLAG_IRAM, spiIrqHandler, this, &intr_handle));
+    ESP_ERROR_CHECK(esp_intr_alloc(irq_num, ESP_INTR_FLAG_INTRDISABLED | ESP_INTR_FLAG_IRAM, spiIrqHandler, this, &intr_handle));
+
+    ((volatile spi_dev_t*)hw)->ctrl2.setup_time = 8;
+    ((volatile spi_dev_t*)hw)->ctrl2.hold_time = 8;
 
     ((volatile spi_dev_t*)hw)->user.usr_command = 0;
     ((volatile spi_dev_t*)hw)->user.usr_addr = 0;
     ((volatile spi_dev_t*)hw)->user.usr_miso = 1;
     ((volatile spi_dev_t*)hw)->user.usr_mosi = 1;
+    ((volatile spi_dev_t*)hw)->user.cs_setup = 1;
+    ((volatile spi_dev_t*)hw)->user.cs_hold = 1;
     ((volatile spi_dev_t*)hw)->user.doutdin = 0;
 
     xSemaphoreGive(mutex);
@@ -50,6 +56,12 @@ void ESP32SPI::init(void)
 void ESP32SPI::setClock(unsigned freq)
 {
     xSemaphoreTake(mutex, portMAX_DELAY);
+
+    ((volatile spi_dev_t*)hw)->clock.clk_equ_sysclk = 0;
+    ((volatile spi_dev_t*)hw)->clock.clkdiv_pre = 0;
+    ((volatile spi_dev_t*)hw)->clock.clkcnt_n = 3;
+    ((volatile spi_dev_t*)hw)->clock.clkcnt_h = (((volatile spi_dev_t*)hw)->clock.clkcnt_n + 1) / 2 - 1;
+    ((volatile spi_dev_t*)hw)->clock.clkcnt_l = ((volatile spi_dev_t*)hw)->clock.clkcnt_n;
 
     xSemaphoreGive(mutex);
 }
@@ -75,6 +87,7 @@ void ESP32SPI::transfer(void* tx_data, size_t tx_len, void* rx_data, size_t rx_l
     /* Wait for transaction to complete */
     while(((volatile spi_dev_t*)hw)->cmd.usr)
     {
+        esp_intr_enable(intr_handle);
         xSemaphoreTake(done_sem, portMAX_DELAY);
     }
 

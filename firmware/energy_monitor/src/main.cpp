@@ -39,10 +39,6 @@ static void platformInit(void)
     ESP_ERROR_CHECK(gpio_set_direction(LED3_PIN, GPIO_MODE_OUTPUT));
     ESP_ERROR_CHECK(gpio_set_level(LED3_PIN, 0));
 
-    gpio_pad_select_gpio(CS_PIN);
-    ESP_ERROR_CHECK(gpio_set_direction(CS_PIN, GPIO_MODE_OUTPUT));
-    ESP_ERROR_CHECK(gpio_set_level(CS_PIN, 1));
-
     gpio_pad_select_gpio(ADC_RESET_PIN);
     ESP_ERROR_CHECK(gpio_set_direction(ADC_RESET_PIN, GPIO_MODE_OUTPUT));
     ESP_ERROR_CHECK(gpio_set_level(ADC_RESET_PIN, 1));
@@ -59,37 +55,15 @@ static void platformInit(void)
     ESP_ERROR_CHECK(gpio_set_direction(ADC_DRDY_PIN, GPIO_MODE_INPUT));
 
     /* SPI configuration */
-/*
-    const spi_bus_config_t spi_bus_config =
-    {
-        .mosi_io_num = MOSI_PIN,
-        .miso_io_num = MISO_PIN,
-        .sclk_io_num = SCK_PIN,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
-        .max_transfer_sz = 0
-    };
-
-    ESP_ERROR_CHECK(spi_bus_initialize(HSPI_HOST, &spi_bus_config, 0));
-*/
     periph_module_enable(PERIPH_HSPI_MODULE);
 
-    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[MOSI_PIN], PIN_FUNC_GPIO);
-    gpio_set_direction(MOSI_PIN, GPIO_MODE_INPUT_OUTPUT);
-    gpio_matrix_out(MOSI_PIN, HSPID_OUT_IDX, false, false);
-    gpio_matrix_in(MOSI_PIN, HSPID_IN_IDX, false);
-
-    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[MISO_PIN], PIN_FUNC_GPIO);
-    gpio_set_direction(MISO_PIN, GPIO_MODE_INPUT_OUTPUT);
-    gpio_matrix_out(MISO_PIN, HSPIQ_OUT_IDX, false, false);
-    gpio_matrix_in(MISO_PIN, HSPIQ_IN_IDX, false);
-
-    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[SCK_PIN], PIN_FUNC_GPIO);
-    gpio_set_direction(SCK_PIN, GPIO_MODE_INPUT_OUTPUT);
-    gpio_matrix_out(SCK_PIN, HSPICLK_OUT_IDX, false, false);
-    gpio_matrix_in(SCK_PIN, HSPICLK_IN_IDX, false);
+    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[CS_PIN], FUNC_MTDO_HSPICS0);
+    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[SCK_PIN], FUNC_MTMS_HSPICLK);
+    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[MOSI_PIN], FUNC_MTCK_HSPID);
+    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[MISO_PIN], FUNC_MTDI_HSPIQ);
 
     spi.init();
+    spi.setClock(20000000);
 
     uint8_t data[] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
 
