@@ -4,8 +4,6 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include <soc/spi_struct.h>
-
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -22,7 +20,7 @@ public:
     void transfer(void* tx_data, size_t tx_len, void* rx_data, size_t rx_len);
 
 private:
-    volatile void* hw;
+    volatile void* reg_base;
     unsigned irq_num;
 
     SemaphoreHandle_t mutex;
