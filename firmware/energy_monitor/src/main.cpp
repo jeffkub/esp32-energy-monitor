@@ -6,16 +6,19 @@
 #include <freertos/task.h>
 
 #include <driver/gpio.h>
+#include <driver/periph_ctrl.h>
 #include <driver/spi_master.h>
 #include <soc/io_mux_reg.h>
 
 #include "platform.h"
 #include "ads131.h"
 #include "daq.h"
+#include "esp32_spi.h"
 
 static void platformInit(void);
 static void blinkTask(void *arg);
 
+static ESP32SPI spi(&SPI2, ETS_SPI2_INTR_SOURCE);
 static ADS131 adc(HSPI_HOST, CS_PIN, ADC_DRDY_PIN);
 static DAQ daq(&adc);
 
@@ -56,6 +59,7 @@ static void platformInit(void)
     ESP_ERROR_CHECK(gpio_set_direction(ADC_DRDY_PIN, GPIO_MODE_INPUT));
 
     /* SPI configuration */
+/*
     const spi_bus_config_t spi_bus_config =
     {
         .mosi_io_num = MOSI_PIN,
@@ -67,6 +71,35 @@ static void platformInit(void)
     };
 
     ESP_ERROR_CHECK(spi_bus_initialize(HSPI_HOST, &spi_bus_config, 0));
+*/
+    periph_module_enable(PERIPH_HSPI_MODULE);
+
+    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[MOSI_PIN], PIN_FUNC_GPIO);
+    gpio_set_direction(MOSI_PIN, GPIO_MODE_INPUT_OUTPUT);
+    gpio_matrix_out(MOSI_PIN, HSPID_OUT_IDX, false, false);
+    gpio_matrix_in(MOSI_PIN, HSPID_IN_IDX, false);
+
+    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[MISO_PIN], PIN_FUNC_GPIO);
+    gpio_set_direction(MISO_PIN, GPIO_MODE_INPUT_OUTPUT);
+    gpio_matrix_out(MISO_PIN, HSPIQ_OUT_IDX, false, false);
+    gpio_matrix_in(MISO_PIN, HSPIQ_IN_IDX, false);
+
+    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[SCK_PIN], PIN_FUNC_GPIO);
+    gpio_set_direction(SCK_PIN, GPIO_MODE_INPUT_OUTPUT);
+    gpio_matrix_out(SCK_PIN, HSPICLK_OUT_IDX, false, false);
+    gpio_matrix_in(SCK_PIN, HSPICLK_IN_IDX, false);
+
+    spi.init();
+
+    uint8_t data[] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
+
+    ESP_ERROR_CHECK(gpio_set_level(CS_PIN, 0));
+    spi.transfer(data, sizeof(data), data, sizeof(data));
+    ESP_ERROR_CHECK(gpio_set_level(CS_PIN, 1));
+
+    printf("rx data: %02x %02x %02x %02x\r\n", data[0], data[1], data[2], data[3]);
+
+    vTaskSuspend(NULL);
 
     /* Driver initialization */
     adc.init();

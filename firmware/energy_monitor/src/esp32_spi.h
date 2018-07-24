@@ -1,7 +1,10 @@
 #ifndef _ESP32_SPI_H_
 #define _ESP32_SPI_H_
 
+#include <cstdint>
 #include <cstdlib>
+
+#include <soc/spi_struct.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -9,29 +12,25 @@
 class ESP32SPI
 {
 public:
-    ESP32SPI(uint32_t device);
+    ESP32SPI(volatile void* device,  unsigned irq);
     ~ESP32SPI();
 
     void init(void);
 
     void setClock(unsigned freq);
 
-    void transfer(void* tx_buf, void* rx_buf, size_t len);
+    void transfer(void* tx_data, size_t tx_len, void* rx_data, size_t rx_len);
 
 private:
-    uint32_t base_reg;
+    volatile void* hw;
+    unsigned irq_num;
 
     SemaphoreHandle_t mutex;
+    SemaphoreHandle_t done_sem;
 
-    inline uint32_t readReg(uint32_t reg)
-    {
-        return *((uint32_t*)(this->base_reg + reg));
-    }
+    intr_handle_t intr_handle;
 
-    inline void writeReg(uint32_t reg, uint32_t val)
-    {
-        *((uint32_t*)(this->base_reg + reg)) = val;
-    }
+    static void spiIrqHandler(void* arg);
 };
 
 #endif /* #ifndef _ESP32_SPI_H_ */

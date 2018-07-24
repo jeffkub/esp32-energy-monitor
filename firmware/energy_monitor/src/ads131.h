@@ -58,7 +58,6 @@ private:
     spi_device_handle_t spi_handle;
     gpio_num_t cs_pin;
     gpio_num_t drdy_pin;
-    gpio_isr_handle_t drdy_isr_handle;
 
     SemaphoreHandle_t mutex;
     SemaphoreHandle_t drdy_sem;
