@@ -1,10 +1,14 @@
 #include "esp32_spi.h"
 
 #include <cassert>
+#include <climits>
 
 #include <soc/spi_struct.h>
 
 #define SPI_REG(inst)   (*((volatile spi_dev_t*)((inst)->reg_base)))
+
+#define CLKDIV_PRE_MAX  (1 << 13)
+#define CLKCNT_N_MAX    (1 << 6)
 
 void IRAM_ATTR ESP32SPI::spiIrqHandler(void* arg)
 {
@@ -59,13 +63,55 @@ void ESP32SPI::init(void)
 
 void ESP32SPI::setClock(unsigned freq)
 {
+    int best_err = INT_MAX;
+    int pre = CLKDIV_PRE_MAX;
+    int n = CLKCNT_N_MAX;
+
+    if(freq >= APB_CLK_FREQ)
+    {
+        pre = 1;
+        n = 1;
+    }
+    else
+    {
+        for(int cur_n = 2; cur_n <= CLKCNT_N_MAX; cur_n++)
+        {
+            /* Round up value */
+            int cur_pre = (APB_CLK_FREQ + (cur_n * freq) - 1) / (cur_n * freq);
+
+            if(cur_pre < 1) cur_pre = 1;
+            if(cur_pre > CLKDIV_PRE_MAX) continue;
+
+            int cur_freq = APB_CLK_FREQ / (cur_n * cur_pre);
+            int err = abs(freq - cur_freq);
+
+            if(err <= best_err)
+            {
+                best_err = err;
+                pre = cur_pre;
+                n = cur_n;
+            }
+        }
+    }
+
     xSemaphoreTake(mutex, portMAX_DELAY);
 
-    SPI_REG(this).clock.clk_equ_sysclk = 0;
-    SPI_REG(this).clock.clkdiv_pre = 0;
-    SPI_REG(this).clock.clkcnt_n = 3;
-    SPI_REG(this).clock.clkcnt_h = (SPI_REG(this).clock.clkcnt_n + 1) / 2 - 1;
-    SPI_REG(this).clock.clkcnt_l = SPI_REG(this).clock.clkcnt_n;
+    if(pre == 1 && n == 1)
+    {
+        SPI_REG(this).clock.clk_equ_sysclk = 1;
+        SPI_REG(this).clock.clkdiv_pre = 0;
+        SPI_REG(this).clock.clkcnt_n = 0;
+        SPI_REG(this).clock.clkcnt_h = 0;
+        SPI_REG(this).clock.clkcnt_l = 0;
+    }
+    else
+    {
+        SPI_REG(this).clock.clk_equ_sysclk = 0;
+        SPI_REG(this).clock.clkdiv_pre = pre - 1;
+        SPI_REG(this).clock.clkcnt_n = n-1;
+        SPI_REG(this).clock.clkcnt_h = (n/2)-1;
+        SPI_REG(this).clock.clkcnt_l = n-1;
+    }
 
     xSemaphoreGive(mutex);
 }
