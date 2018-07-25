@@ -116,6 +116,43 @@ void ESP32SPI::setClock(unsigned freq)
     xSemaphoreGive(mutex);
 }
 
+void ESP32SPI::setMode(unsigned mode)
+{
+    xSemaphoreTake(mutex, portMAX_DELAY);
+
+    if(mode == 0)
+    {
+        SPI_REG(this).pin.ck_idle_edge = 0;
+        SPI_REG(this).user.ck_out_edge = 0;
+    }
+    else if(mode == 1)
+    {
+        SPI_REG(this).pin.ck_idle_edge = 0;
+        SPI_REG(this).user.ck_out_edge = 1;
+    }
+    else if(mode == 2)
+    {
+        SPI_REG(this).pin.ck_idle_edge = 1;
+        SPI_REG(this).user.ck_out_edge = 1;
+    }
+    else if(mode == 3)
+    {
+        SPI_REG(this).pin.ck_idle_edge = 1;
+        SPI_REG(this).user.ck_out_edge = 0;
+    }
+    else
+    {
+        assert(false);
+    }
+
+    SPI_REG(this).ctrl2.miso_delay_mode = 0; /* This assumes using IO_MUX */
+    SPI_REG(this).ctrl2.miso_delay_num = 0;
+    SPI_REG(this).ctrl2.mosi_delay_mode = 0;
+    SPI_REG(this).ctrl2.mosi_delay_num = 0;
+
+    xSemaphoreGive(mutex);
+}
+
 void ESP32SPI::transfer(void* tx_data, size_t tx_len, void* rx_data, size_t rx_len)
 {
     xSemaphoreTake(mutex, portMAX_DELAY);

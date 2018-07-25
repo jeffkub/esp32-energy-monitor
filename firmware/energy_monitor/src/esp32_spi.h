@@ -16,6 +16,7 @@ public:
     void init(void);
 
     void setClock(unsigned freq);
+    void setMode(unsigned mode);
 
     void transfer(void* tx_data, size_t tx_len, void* rx_data, size_t rx_len);
 
