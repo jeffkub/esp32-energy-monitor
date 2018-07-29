@@ -66,13 +66,20 @@ static void platformInit(void)
     spi.setClock(20000000);
     spi.setMode(1);
 
-    uint8_t data[] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
+    for(int index = 0; index < 10; index++)
+    {
+        uint8_t tx_data[] = { 0x12 };
 
-    ESP_ERROR_CHECK(gpio_set_level(CS_PIN, 0));
-    spi.transfer(data, sizeof(data), data, sizeof(data));
-    ESP_ERROR_CHECK(gpio_set_level(CS_PIN, 1));
+        uint8_t rx_data[27] = {};
 
-    printf("rx data: %02x %02x %02x %02x\r\n", data[0], data[1], data[2], data[3]);
+        int64_t start1 = esp_timer_get_time();
+        GPIO.out_w1ts = (1 << LED2_PIN);
+        spi.transfer(tx_data, sizeof(tx_data), rx_data, sizeof(rx_data));
+        GPIO.out_w1tc = (1 << LED2_PIN);
+        int64_t end1 = esp_timer_get_time();
+
+        printf("transfer time = %lld\r\n", end1 - start1);
+    }
 
     vTaskSuspend(NULL);
 

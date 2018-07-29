@@ -1,7 +1,9 @@
 #include "esp32_spi.h"
 
+#include <algorithm>
 #include <cassert>
 #include <climits>
+#include <cstring>
 
 #include <soc/spi_struct.h>
 
@@ -162,10 +164,11 @@ void ESP32SPI::transfer(void* tx_data, size_t tx_len, void* rx_data, size_t rx_l
     SPI_REG(this).miso_dlen.usr_miso_dbitlen = rx_len * 8;
 
     /* Write TX data to SPI data buffer */
-    for(int index = 0; index < (tx_len+3)/4; index++)
+    for(int index = 0; index < tx_len; index += 4)
     {
-        /* TODO: Handle non-word aligned lengths */
-        SPI_REG(this).data_buf[index] = ((uint32_t*)tx_data)[index];
+        uint32_t temp = 0;
+        memcpy(&temp, &((uint32_t*)tx_data)[index/4], std::min(tx_len - index, sizeof(temp)));
+        SPI_REG(this).data_buf[index/4] = temp;
     }
 
     /* Start SPI transaction */
@@ -180,10 +183,10 @@ void ESP32SPI::transfer(void* tx_data, size_t tx_len, void* rx_data, size_t rx_l
 
     if(rx_data != NULL)
     {
-        for(int index = 0; index < (tx_len+3)/4; index++)
+        for(int index = 0; index < rx_len; index += 4)
         {
-            /* TODO: Handle non-word aligned lengths */
-            ((uint32_t*)rx_data)[index] = SPI_REG(this).data_buf[index];
+            uint32_t temp = SPI_REG(this).data_buf[index/4];
+            memcpy(&((uint32_t*)rx_data)[index/4], &temp, std::min(rx_len - index, sizeof(temp)));
         }
     }
 
