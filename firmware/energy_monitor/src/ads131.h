@@ -8,7 +8,8 @@
 #include <freertos/semphr.h>
 
 #include <driver/gpio.h>
-#include <driver/spi_master.h>
+
+class ESP32SPI;
 
 class ADC
 {
@@ -40,7 +41,7 @@ public:
         VRef_Internal_4V = 2
     };
 
-    ADS131(spi_host_device_t spi, gpio_num_t cs, gpio_num_t drdy);
+    ADS131(ESP32SPI* spi, gpio_num_t drdy);
     ~ADS131();
 
     void init(void);
@@ -54,9 +55,7 @@ public:
     virtual void read(float* data, size_t channels);
 
 private:
-    spi_host_device_t spi_dev;
-    spi_device_handle_t spi_handle;
-    gpio_num_t cs_pin;
+    ESP32SPI* spi_dev;
     gpio_num_t drdy_pin;
 
     SemaphoreHandle_t mutex;

@@ -19,7 +19,7 @@ static void platformInit(void);
 static void blinkTask(void *arg);
 
 static ESP32SPI spi(&SPI2, ETS_SPI2_INTR_SOURCE);
-static ADS131 adc(HSPI_HOST, CS_PIN, ADC_DRDY_PIN);
+static ADS131 adc(&spi, ADC_DRDY_PIN);
 static DAQ daq(&adc);
 
 static void platformInit(void)
@@ -63,6 +63,8 @@ static void platformInit(void)
     PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[MISO_PIN], FUNC_MTDI_HSPIQ);
 
     spi.init();
+
+#if 0
     spi.setClock(20000000);
     spi.setMode(1);
 
@@ -82,6 +84,7 @@ static void platformInit(void)
     }
 
     vTaskSuspend(NULL);
+#endif
 
     /* Driver initialization */
     adc.init();

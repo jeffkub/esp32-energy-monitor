@@ -5,6 +5,8 @@
 
 #include <freertos/task.h>
 
+#include "esp32_spi.h"
+
 #define CMD_NOP             (0x00)
 #define CMD_WAKEUP          (0x02)
 #define CMD_STANDBY         (0x04)
@@ -15,8 +17,8 @@
 #define CMD_RDATAC          (0x10)
 #define CMD_SDATAC          (0x11)
 #define CMD_RDATA           (0x12)
-#define CMD_RREG(reg)       (0x20 | ((reg) & 0x1F))
-#define CMD_WREG(reg)       (0x40 | ((reg) & 0x1F))
+#define CMD_RREG(reg)       ((uint8_t)(0x20 | ((reg) & 0x1F)))
+#define CMD_WREG(reg)       ((uint8_t)(0x40 | ((reg) & 0x1F)))
 
 #define REG_ID              (0x00)
 #define REG_CONFIG1         (0x01)
@@ -37,6 +39,9 @@
 #define BITS_PER_CHAN       24
 #define MAX_CHANS           8
 
+#define SPI_CLOCK_HZ        20000000
+#define SPI_CLOCK_SLOW_HZ   4000000
+
 static inline int32_t sign_extend(int32_t x, int bits)
 {
     int32_t m = 1 << (bits - 1);
@@ -56,9 +61,8 @@ void IRAM_ATTR ADS131::drdyIrqHandler(void* arg)
     }
 }
 
-ADS131::ADS131(spi_host_device_t spi, gpio_num_t cs, gpio_num_t drdy) :
+ADS131::ADS131(ESP32SPI* spi, gpio_num_t drdy) :
     spi_dev(spi),
-    cs_pin(cs),
     drdy_pin(drdy)
 {
     mutex = xSemaphoreCreateMutex();
@@ -80,28 +84,12 @@ void ADS131::init(void)
 
     xSemaphoreTake(mutex, portMAX_DELAY);
 
+    spi_dev->setMode(1);
+    spi_dev->setClock(SPI_CLOCK_HZ);
+
     /* Setup interrupt handler for DRDY pin */
     ESP_ERROR_CHECK(gpio_set_intr_type(drdy_pin, GPIO_INTR_NEGEDGE));
     ESP_ERROR_CHECK(gpio_isr_handler_add(drdy_pin, drdyIrqHandler, this));
-
-    spi_device_interface_config_t spi_config =
-    {
-        .command_bits = 0,
-        .address_bits = 0,
-        .dummy_bits = 0,
-        .mode = 1,
-        .duty_cycle_pos = 0,
-        .cs_ena_pretrans = 0,
-        .cs_ena_posttrans = 0,
-        .clock_speed_hz = 20000000,
-        .spics_io_num = -1,
-        .flags = 0,
-        .queue_size = 2,
-        .pre_cb = NULL,
-        .post_cb = NULL
-    };
-
-    ESP_ERROR_CHECK(spi_bus_add_device(spi_dev, &spi_config, &spi_handle));
 
     /* Issue reset command */
     command(CMD_RESET);
@@ -172,16 +160,10 @@ void ADS131::stop(void)
 
 void ADS131::read(float* data, size_t channels)
 {
-    spi_transaction_t trans = {};
-    uint8_t buffer[28] = {};
+    uint8_t tx_data[] = {CMD_RDATA};
+    uint8_t rx_data[27];
 
     assert(channels <= MAX_CHANS);
-
-    trans.length = sizeof(buffer) * 8;
-    trans.tx_buffer = buffer;
-    trans.rx_buffer = buffer;
-
-    buffer[0] = CMD_RDATA; /* Command byte */
 
     xSemaphoreTake(mutex, portMAX_DELAY);
 
@@ -194,15 +176,12 @@ void ADS131::read(float* data, size_t channels)
     }
 
     /* Perform SPI transfer */
-    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
-    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans));
-    usleep(2);
-    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
+    spi_dev->transfer(tx_data, sizeof(tx_data), rx_data, sizeof(rx_data));
 
     /* Process channel data */
     for(unsigned chan = 0; chan < channels; chan++)
     {
-        uint8_t* cur_sample = &buffer[4 + (chan*3)];
+        uint8_t* cur_sample = &rx_data[3 + (chan*3)];
 
         /* Sign extend 24 bit integer to 32 bit integer */
         int32_t raw_val = sign_extend(
@@ -219,79 +198,26 @@ void ADS131::read(float* data, size_t channels)
 
 void ADS131::command(uint8_t cmd)
 {
-    spi_transaction_t trans = {};
-
-    trans.flags = SPI_TRANS_USE_TXDATA;
-    trans.length = 8;
-    trans.tx_data[0] = cmd;
-
-    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
-
-    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &trans));
-    usleep(2);
-
-    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
-    usleep(1);
+    spi_dev->transfer(&cmd, sizeof(cmd), NULL, 0);
 }
 
 uint8_t ADS131::readReg(uint8_t addr)
 {
-    spi_transaction_t cmd = {};
-    spi_transaction_t len = {};
-    spi_transaction_t data = {};
+    uint8_t tx_data[] = {CMD_RREG(addr), 0};
+    uint8_t reg_val;
 
-    cmd.flags = SPI_TRANS_USE_TXDATA;
-    cmd.length = 8;
-    cmd.tx_data[0] = CMD_RREG(addr);
+    spi_dev->setClock(SPI_CLOCK_SLOW_HZ);
+    spi_dev->transfer(tx_data, sizeof(tx_data), &reg_val, sizeof(reg_val));
+    spi_dev->setClock(SPI_CLOCK_HZ);
 
-    len.flags = SPI_TRANS_USE_TXDATA;
-    len.length = 8;
-    len.tx_data[0] = 0; /* Len - 1 */
-
-    data.flags = SPI_TRANS_USE_TXDATA | SPI_TRANS_USE_RXDATA;
-    data.length = 8;
-    data.tx_data[0] = CMD_NOP;
-
-    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
-
-    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &cmd))
-    usleep(2);
-    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &len));
-    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &data));
-    usleep(2);
-
-    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
-    usleep(1);
-
-    return data.rx_data[0];
+    return reg_val;
 }
 
 void ADS131::writeReg(uint8_t addr, uint8_t val)
 {
-    spi_transaction_t cmd = {};
-    spi_transaction_t len = {};
-    spi_transaction_t data = {};
+    uint8_t tx_data[] = {CMD_WREG(addr), 0, val};
 
-    cmd.flags = SPI_TRANS_USE_TXDATA;
-    cmd.length = 8;
-    cmd.tx_data[0] = CMD_WREG(addr);       /* Command */
-
-    len.flags = SPI_TRANS_USE_TXDATA;
-    len.length = 8;
-    len.tx_data[0] = 0;                    /* Len - 1 */
-
-    data.flags = SPI_TRANS_USE_TXDATA;
-    data.length = 8;
-    data.tx_data[0] = val;
-
-    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 0));
-
-    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &cmd));
-    usleep(2);
-    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &len));
-    ESP_ERROR_CHECK(spi_device_transmit(spi_handle, &data));
-    usleep(2);
-
-    ESP_ERROR_CHECK(gpio_set_level(cs_pin, 1));
-    usleep(1);
+    spi_dev->setClock(SPI_CLOCK_SLOW_HZ);
+    spi_dev->transfer(tx_data, sizeof(tx_data), NULL, 0);
+    spi_dev->setClock(SPI_CLOCK_HZ);
 }
