@@ -54,8 +54,8 @@ void ESP32SPI::init(void)
 
     SPI_REG(this).user.usr_command = 0;
     SPI_REG(this).user.usr_addr = 0;
-    SPI_REG(this).user.usr_miso = 1;
-    SPI_REG(this).user.usr_mosi = 1;
+    SPI_REG(this).user.usr_mosi_highpart = 0;
+    SPI_REG(this).user.usr_miso_highpart = 0;
     SPI_REG(this).user.cs_setup = 1;
     SPI_REG(this).user.cs_hold = 1;
     SPI_REG(this).user.doutdin = 0;
@@ -160,8 +160,25 @@ void ESP32SPI::transfer(void* tx_data, size_t tx_len, void* rx_data, size_t rx_l
     xSemaphoreTake(mutex, portMAX_DELAY);
 
     /* Configure SPI transaction */
-    SPI_REG(this).mosi_dlen.usr_mosi_dbitlen = tx_len * 8;
-    SPI_REG(this).miso_dlen.usr_miso_dbitlen = rx_len * 8;
+    if(tx_len > 0)
+    {
+        SPI_REG(this).user.usr_mosi = 1;
+        SPI_REG(this).mosi_dlen.usr_mosi_dbitlen = (tx_len * 8) - 1;
+    }
+    else
+    {
+        SPI_REG(this).user.usr_mosi = 0;
+    }
+
+    if(rx_len > 0)
+    {
+        SPI_REG(this).user.usr_miso = 1;
+        SPI_REG(this).miso_dlen.usr_miso_dbitlen = (rx_len * 8) - 1;
+    }
+    else
+    {
+        SPI_REG(this).user.usr_miso = 0;
+    }
 
     /* Write TX data to SPI data buffer */
     for(int index = 0; index < tx_len; index += 4)

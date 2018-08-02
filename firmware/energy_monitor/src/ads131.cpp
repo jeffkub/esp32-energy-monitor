@@ -198,7 +198,9 @@ void ADS131::read(float* data, size_t channels)
 
 void ADS131::command(uint8_t cmd)
 {
+    spi_dev->setClock(SPI_CLOCK_SLOW_HZ);
     spi_dev->transfer(&cmd, sizeof(cmd), NULL, 0);
+    spi_dev->setClock(SPI_CLOCK_HZ);
 }
 
 uint8_t ADS131::readReg(uint8_t addr)

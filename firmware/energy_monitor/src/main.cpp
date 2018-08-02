@@ -64,28 +64,6 @@ static void platformInit(void)
 
     spi.init();
 
-#if 0
-    spi.setClock(20000000);
-    spi.setMode(1);
-
-    for(int index = 0; index < 10; index++)
-    {
-        uint8_t tx_data[] = { 0x12 };
-
-        uint8_t rx_data[27] = {};
-
-        int64_t start1 = esp_timer_get_time();
-        GPIO.out_w1ts = (1 << LED2_PIN);
-        spi.transfer(tx_data, sizeof(tx_data), rx_data, sizeof(rx_data));
-        GPIO.out_w1tc = (1 << LED2_PIN);
-        int64_t end1 = esp_timer_get_time();
-
-        printf("transfer time = %lld\r\n", end1 - start1);
-    }
-
-    vTaskSuspend(NULL);
-#endif
-
     /* Driver initialization */
     adc.init();
     adc.setVRef(ADS131::VRef_Internal_4V);
