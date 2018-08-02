@@ -15,4 +15,7 @@
 #define ADC_START_PIN   GPIO_NUM_26
 #define ADC_DRDY_PIN    GPIO_NUM_27
 
+#define DEBUG1_PIN      GPIO_NUM_22
+#define DEBUG2_PIN      GPIO_NUM_23
+
 #endif /* #ifndef _PROJECT_H_ */

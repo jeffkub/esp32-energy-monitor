@@ -54,6 +54,14 @@ static void platformInit(void)
     gpio_pad_select_gpio(ADC_DRDY_PIN);
     ESP_ERROR_CHECK(gpio_set_direction(ADC_DRDY_PIN, GPIO_MODE_INPUT));
 
+    gpio_pad_select_gpio(DEBUG1_PIN);
+    ESP_ERROR_CHECK(gpio_set_direction(DEBUG1_PIN, GPIO_MODE_OUTPUT));
+    ESP_ERROR_CHECK(gpio_set_level(DEBUG1_PIN, 0));
+
+    gpio_pad_select_gpio(DEBUG2_PIN);
+    ESP_ERROR_CHECK(gpio_set_direction(DEBUG2_PIN, GPIO_MODE_OUTPUT));
+    ESP_ERROR_CHECK(gpio_set_level(DEBUG2_PIN, 0));
+
     /* SPI configuration */
     periph_module_enable(PERIPH_HSPI_MODULE);
 
