@@ -5,6 +5,7 @@
 
 #include <freertos/task.h>
 
+#include "platform.h"
 #include "esp32_spi.h"
 
 #define CMD_NOP             (0x00)
@@ -171,7 +172,9 @@ void ADS131::read(float* data, size_t channels)
     while(gpio_get_level(drdy_pin) == 1)
     {
         xSemaphoreGive(mutex);
+        //CLR_DEBUG1();
         xSemaphoreTake(drdy_sem, portMAX_DELAY);
+        //SET_DEBUG1();
         xSemaphoreTake(mutex, portMAX_DELAY);
     }
 

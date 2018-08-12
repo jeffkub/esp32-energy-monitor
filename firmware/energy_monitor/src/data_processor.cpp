@@ -5,7 +5,7 @@
 RootMeanSquare::RootMeanSquare() :
     sos(0.0),
     sample_count(0),
-    rms(0.0f)
+    mean_sos(0.0)
 {
 
 }
@@ -21,9 +21,9 @@ void RootMeanSquare::input(float sample)
     sample_count++;
 }
 
-void RootMeanSquare::calculate(void)
+void RootMeanSquare::capture(void)
 {
-    rms = (float) sqrt(sos / (double)sample_count);
+    mean_sos = (float) (sos / (double)sample_count);
 
     sos = 0.0;
     sample_count = 0;
@@ -31,5 +31,5 @@ void RootMeanSquare::calculate(void)
 
 float RootMeanSquare::get(void)
 {
-    return rms;
+    return sqrt(mean_sos);
 }

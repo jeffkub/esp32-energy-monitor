@@ -4,20 +4,29 @@
 
 #include "ads131.h"
 
-DAQ::DAQ(ADC* adc) :
-    adc_dev(adc)
-{
+#define CHANNEL_COUNT 8
 
+DAQ::DAQ(ADC* adc, unsigned interval) :
+    adc_dev(adc),
+    interval_len(interval)
+{
+    ready_sem = xSemaphoreCreateBinary();
+    assert(ready_sem != NULL);
 }
 
 DAQ::~DAQ()
 {
-
+    vSemaphoreDelete(ready_sem);
 }
 
 void DAQ::start(void)
 {
-    assert(xTaskCreate(&taskEntry, "daq", 4096, this, 5, &task) == pdPASS);
+    assert(xTaskCreate(&taskEntry, "sampleTask", 4096, this, configMAX_PRIORITIES - 1, &task) == pdPASS);
+}
+
+void DAQ::wait(void)
+{
+    xSemaphoreTake(ready_sem, portMAX_DELAY);
 }
 
 void DAQ::taskEntry(void *arg)
@@ -27,48 +36,41 @@ void DAQ::taskEntry(void *arg)
     inst->mainLoop();
 }
 
-#define SAMPLE_COUNT 1000
-#define CHANNEL_COUNT 8
-
-static float buffer[SAMPLE_COUNT][CHANNEL_COUNT];
-
 void DAQ::mainLoop(void)
 {
+    float buffer[CHANNEL_COUNT];
+
+    adc_dev->start();
+
     while(true)
     {
-        adc_dev->start();
-
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-
-        printf("Capture start\r\n");
-
-        for(int index = 0; index < SAMPLE_COUNT; index++)
+        for(unsigned sample = 0; sample < interval_len; sample++)
         {
-            adc_dev->read(&buffer[index][0], CHANNEL_COUNT);
-            V1Rms.input(buffer[index][7]);
+            adc_dev->read(buffer, CHANNEL_COUNT);
+
+            V1Rms.input(buffer[7]);
+            V1Rms.input(buffer[6]);
+
+            I1Rms.input(buffer[5]);
+            I2Rms.input(buffer[4]);
+            I3Rms.input(buffer[3]);
+            I4Rms.input(buffer[2]);
+            I5Rms.input(buffer[1]);
+            I6Rms.input(buffer[0]);
         }
 
-        printf("Capture complete\r\n");
+        V1Rms.capture();
+        V2Rms.capture();
 
-        adc_dev->stop();
+        I1Rms.capture();
+        I2Rms.capture();
+        I3Rms.capture();
+        I4Rms.capture();
+        I5Rms.capture();
+        I6Rms.capture();
 
-        V1Rms.calculate();
-
-        for(int index = 0; index < SAMPLE_COUNT; index++)
-        {
-            for(int chan = 0; chan < CHANNEL_COUNT; chan++)
-            {
-                printf("%0.9f, ", buffer[index][chan]);
-            }
-
-            printf("\r\n");
-
-            if(index % 100 == 0)
-            {
-                vTaskDelay(1);
-            }
-        }
-
-        vTaskSuspend(NULL);
+        xSemaphoreGive(ready_sem);
     }
+
+    adc_dev->stop();
 }

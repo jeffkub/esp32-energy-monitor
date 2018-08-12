@@ -15,12 +15,16 @@
 #include "daq.h"
 #include "esp32_spi.h"
 
+#define SAMPLE_RATE_HZ 4000
+#define INTERVAL_LEN_S 5
+
 static void platformInit(void);
 static void blinkTask(void *arg);
+static void daqTask(void *arg);
 
 static ESP32SPI spi(&SPI2, ETS_SPI2_INTR_SOURCE);
 static ADS131 adc(&spi, ADC_DRDY_PIN);
-static DAQ daq(&adc);
+static DAQ daq(&adc, INTERVAL_LEN_S * SAMPLE_RATE_HZ);
 
 static void platformInit(void)
 {
@@ -75,7 +79,7 @@ static void platformInit(void)
     /* Driver initialization */
     adc.init();
     adc.setVRef(ADS131::VRef_Internal_4V);
-    adc.setDataRate(ADS131::DataRate_24bit_16ksps);
+    adc.setDataRate(ADS131::DataRate_24bit_4ksps);
 }
 
 static void blinkTask(void *arg)
@@ -90,6 +94,18 @@ static void blinkTask(void *arg)
     }
 }
 
+static void daqTask(void *arg)
+{
+    daq.start();
+
+    while(1)
+    {
+        daq.wait();
+
+        printf("V1=%7.3f, V2=%7.3f\n", daq.getV1(), daq.getV2());
+    }
+}
+
 extern "C" void app_main()
 {
     printf("Program start\n");
@@ -97,6 +113,5 @@ extern "C" void app_main()
     platformInit();
 
     assert(xTaskCreate(&blinkTask, "blinkTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL) == pdPASS);
-
-    daq.start();
+    assert(xTaskCreate(&daqTask, "daqTask", 4096, NULL, configMAX_PRIORITIES - 2, NULL) == pdPASS);
 }

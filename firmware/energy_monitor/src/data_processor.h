@@ -8,13 +8,13 @@ public:
     ~RootMeanSquare();
 
     void input(float sample);
-    void calculate(void);
+    void capture(void);
     float get(void);
 
 private:
     double sos;
     unsigned sample_count;
-    float rms;
+    float mean_sos;
 };
 
 #endif /* #ifndef _DATA_PROCESSOR_H_ */

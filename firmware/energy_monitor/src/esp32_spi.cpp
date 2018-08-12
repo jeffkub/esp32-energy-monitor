@@ -7,6 +7,8 @@
 
 #include <soc/spi_struct.h>
 
+#include "platform.h"
+
 #define SPI_REG(inst)   (*((volatile spi_dev_t*)((inst)->reg_base)))
 
 #define CLKDIV_PRE_MAX  (1 << 13)
@@ -195,7 +197,9 @@ void ESP32SPI::transfer(void* tx_data, size_t tx_len, void* rx_data, size_t rx_l
     while(SPI_REG(this).cmd.usr)
     {
         esp_intr_enable(intr_handle);
+        //CLR_DEBUG1();
         xSemaphoreTake(done_sem, portMAX_DELAY);
+        //SET_DEBUG1();
     }
 
     if(rx_data != NULL)
