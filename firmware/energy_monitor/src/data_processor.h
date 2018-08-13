@@ -19,12 +19,13 @@ public:
 class DataSource : public VirtualSource
 {
 public:
-    DataSource(float * source);
+    DataSource(float * source, float scale);
 
     virtual float get(void);
 
 private:
     float * source_ptr;
+    float scale_val;
 };
 
 class RootMeanSquare : public VirtualDataProcessor, public VirtualSource

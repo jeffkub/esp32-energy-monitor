@@ -5,15 +5,16 @@
 #include "daq.h"
 
 /* DataSource class */
-DataSource::DataSource(float * source) :
-    source_ptr(source)
+DataSource::DataSource(float * source, float scale) :
+    source_ptr(source),
+    scale_val(scale)
 {
 
 }
 
 float DataSource::get(void)
 {
-    return *source_ptr;
+    return *source_ptr * scale_val;
 }
 
 /* RootMeanSquare class */

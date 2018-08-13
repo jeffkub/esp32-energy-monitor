@@ -4,17 +4,23 @@
 
 #include "ads131.h"
 
+#define VSENSE_SCALE        ((float)(1.0 / (4.7e3 / (600e3 + 4.7e3) / 2.0 * 0.5)))
+/* 200A:26.6mA CT sensor */
+#define ISENSE_MAINS_SCALE  ((float)(1.0 / ((0.0266 / 200.0) * 22.0 / 2.0 * 0.5)))
+/* 100A:50mA CT sensor */
+#define ISENSE_AUX_SCALE    ((float)(1.0 / ((0.050 / 100.0) * 22.0 / 2.0 * 0.5)))
+
 DAQ::DAQ(ADC* adc, unsigned interval) :
     adc_dev(adc),
     interval_len(interval),
-    V1Sample(&sample_data[7]),
-    V2Sample(&sample_data[6]),
-    I1Sample(&sample_data[5]),
-    I2Sample(&sample_data[4]),
-    I3Sample(&sample_data[3]),
-    I4Sample(&sample_data[2]),
-    I5Sample(&sample_data[1]),
-    I6Sample(&sample_data[0]),
+    V1Sample(&sample_data[7], VSENSE_SCALE),
+    V2Sample(&sample_data[6], VSENSE_SCALE),
+    I1Sample(&sample_data[5], ISENSE_MAINS_SCALE),
+    I2Sample(&sample_data[4], ISENSE_MAINS_SCALE),
+    I3Sample(&sample_data[3], ISENSE_AUX_SCALE),
+    I4Sample(&sample_data[2], ISENSE_AUX_SCALE),
+    I5Sample(&sample_data[1], ISENSE_AUX_SCALE),
+    I6Sample(&sample_data[0], ISENSE_AUX_SCALE),
     V1Rms(this, &V1Sample),
     V2Rms(this, &V2Sample),
     I1Rms(this, &I1Sample),
